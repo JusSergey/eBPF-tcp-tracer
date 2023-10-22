@@ -23,9 +23,19 @@ pub struct Connection {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Payload {
-    pub size: u16,
-    pub data: [u8; 4096],
+    pub size: usize,
+    pub data: [u8; 128],
+    pub kernel_ptr: *const u8,
 }
+
+pub static TCP_EVENT_SEND_TEMPLATE: TcpEvent = TcpEvent::Send {
+    connection: Connection {
+        id: Identification { fd: 0, tid: 0 },
+        ip: 0,
+        port: 0,
+    },
+    payload: Payload { size: 0, data: [0u8; 128], kernel_ptr: 0 as *const u8 },
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum TcpEvent {
@@ -40,3 +50,5 @@ pub enum TcpEvent {
     },
     Dummy,
 }
+
+unsafe impl Sync for TcpEvent {}

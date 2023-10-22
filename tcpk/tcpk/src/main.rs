@@ -42,16 +42,14 @@ async fn main() -> Result<(), anyhow::Error> {
         // This can happen if you remove all log statements from your eBPF program.
         warn!("failed to initialize eBPF logger: {}", e);
     }
-    let program: &mut KProbe = bpf.program_mut("program_sys_connect").unwrap().try_into()?;
-    program.load()?;
-    program.attach("__sys_connect", 0)?;
+
+    init_kprobe_program(&mut bpf, "program_sys_connect_entry", "__sys_connect")?;
+    init_kprobe_program(&mut bpf, "program_sys_connect_exit", "__sys_connect")?;
+    init_kprobe_program(&mut bpf, "program_sys_sendto_entry", "__sys_sendto")?;
+    init_kprobe_program(&mut bpf, "program_sys_sendto_exit", "__sys_sendto")?;
 
     let events: AsyncPerfEventArray<&mut MapData> =
         AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS").unwrap()).unwrap();
-    for _ in online_cpus().unwrap() {
-        // let handle = events.open(cpu, None).unwrap();
-        // handle.readable()
-    }
 
     // Just to stop compiler complains
     let events: AsyncPerfEventArray<&'static mut MapData> = unsafe { core::mem::transmute(events) };
@@ -60,6 +58,17 @@ async fn main() -> Result<(), anyhow::Error> {
     handle_events(events).await;
     info!("Exiting...");
 
+    Ok(())
+}
+
+fn init_kprobe_program(
+    bpf: &mut Bpf,
+    program_name: &str,
+    fn_name: &str,
+) -> Result<(), anyhow::Error> {
+    let program: &mut KProbe = bpf.program_mut(program_name).unwrap().try_into()?;
+    program.load()?;
+    program.attach(fn_name, 0)?;
     Ok(())
 }
 
@@ -94,6 +103,12 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
                                         TcpEvent::Connect(connection) => {
                                             info!("Connection event {:?}", connection);
                                         },
+                                        TcpEvent::Send{
+                                            connection, payload
+                                        } => {
+                                            info!("Connection send {:?}\n{:?}", connection, String::from_utf8(payload.data[0..payload.size].to_vec()));
+
+                                        }
                                         _ => {
                                             info!("Another TCP EVENT");
                                         }
