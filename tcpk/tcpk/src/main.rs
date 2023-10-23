@@ -47,7 +47,6 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     init_kprobe_program(&mut bpf, "program_sys_connect_entry", "__sys_connect")?;
-    init_kprobe_program(&mut bpf, "program_sys_connect_exit", "__sys_connect")?;
     init_kprobe_program(&mut bpf, "program_sys_sendto_entry", "__sys_sendto")?;
     init_kprobe_program(&mut bpf, "program_sys_sendto_exit", "__sys_sendto")?;
     init_kprobe_program(&mut bpf, "program_sys_close_entry", "__x64_sys_close")?;
@@ -108,8 +107,6 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
                                     match &a {
                                         TcpEvent::Connect(connection) => {
                                             processor.process_connect(connection).await;
-                                            // info!("Connection event {:?}", connection);
-                                            // st.clone().lock().unwrap().insert(connection.id.tid, vec![]);
                                         },
                                         TcpEvent::Send{
                                             connection, payload

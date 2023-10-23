@@ -1,5 +1,5 @@
 use aya_bpf::macros::map;
-use aya_bpf::maps::{HashMap, PerfEventArray, PerfEventByteArray};
+use aya_bpf::maps::{HashMap, PerfEventArray};
 use tcpk_common::TcpEvent;
 
 /// The data pipe

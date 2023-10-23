@@ -1,8 +1,7 @@
-use core::ffi::c_int;
 use aya_bpf::cty::ssize_t;
 use aya_bpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_user_buf};
 use aya_bpf::programs::ProbeContext;
-use aya_log_ebpf::{error, info};
+use aya_log_ebpf::error;
 use tcpk_common::TcpEvent;
 use crate::states::{DUMMY_TCP_EVENT, EVENTS, TMP_TCP_EVENT};
 
@@ -36,7 +35,7 @@ pub unsafe fn common_read_entry(ctx: ProbeContext, event_template: &TcpEvent) ->
             } else {
                 return Err(0);
             };
-            let fd: c_int = ctx.arg(0).ok_or(0u32)?;
+            let fd: aya_bpf::cty::c_int = ctx.arg(0).ok_or(0u32)?;
 
             if fd != origin_connection.id.fd || tid != origin_connection.id.tid {
                 return Err(0);
@@ -71,14 +70,15 @@ pub unsafe fn common_read_exit(ctx: ProbeContext) -> Result<u32, u32> {
     let tid = bpf_get_current_pid_tgid();
     match TMP_TCP_EVENT.get_ptr_mut(&tid) {
         Some(event) => {
-            let (connection, payload) = match ((*event).get_connection(), (*event).get_payload()) {
-                (Some(connection), Some(payload)) => (connection, payload),
-                _ => return Ok(0),
+            let payload = if let Some(payload) = (*event).get_payload() {
+                payload
+            } else {
+                return Ok(0)
             };
             let mut processed = 0;
             let size_of_buff = core::mem::size_of_val(&payload.data);
 
-            for i in 0..(8192 / size_of_buff) {
+            for _ in 0..(8192 / size_of_buff) {
                 let left = ret as usize - processed;
                 if left == 0 {
                     break;

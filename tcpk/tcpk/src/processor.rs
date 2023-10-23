@@ -52,10 +52,16 @@ impl Processor {
         let out_buffer = self.send_buffer.lock().await.remove(&connection.id.tid);
         let in_buffer = self.recv_buffer.lock().await.remove(&connection.id.tid);
         if let Some(out) = out_buffer {
-            info!("Sent: {}", String::from_utf8(out).unwrap_or_default());
+            info!(
+                "Sent payload:\n{}",
+                String::from_utf8(out).unwrap_or_default()
+            );
         }
         if let Some(inb) = in_buffer {
-            info!("Got: {}", String::from_utf8(inb).unwrap_or_default());
+            info!(
+                "Recv payload:\n{}",
+                String::from_utf8(inb).unwrap_or_default()
+            );
         }
     }
 }

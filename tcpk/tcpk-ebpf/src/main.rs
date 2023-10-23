@@ -4,13 +4,8 @@
 mod programs;
 mod states;
 
-use aya_bpf::{macros::kprobe, programs::ProbeContext, maps::*};
-use aya_bpf::bindings::{bpf_sock_addr, sa_family_t, sockaddr};
-use aya_bpf::cty::c_void;
-use aya_bpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read};
-use aya_bpf::macros::{kretprobe, map};
-use aya_log_ebpf::{error, info};
-use tcpk_common::*;
+use aya_bpf::{macros::kprobe, programs::ProbeContext};
+use aya_bpf::macros::kretprobe;
 
 fn handle_result(result: Result<u32, u32>) -> u32 {
     match result {
@@ -21,11 +16,6 @@ fn handle_result(result: Result<u32, u32>) -> u32 {
 #[kprobe]
 pub fn program_sys_connect_entry(ctx: ProbeContext) -> u32 {
     handle_result(unsafe { programs::sys_connect_entry(ctx) })
-}
-
-#[kretprobe]
-pub fn program_sys_connect_exit(ctx: ProbeContext) -> u32 {
-    handle_result(unsafe { programs::sys_connect_exit(ctx) })
 }
 
 #[kprobe]
