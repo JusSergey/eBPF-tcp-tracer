@@ -12,60 +12,55 @@ use tcpk_common::*;
 use tokio::sync::Mutex;
 
 struct InnerProcessor {
-    ctx: HashMap<u64, Vec<u8>>,
+    send_buffer: HashMap<u64, Vec<u8>>,
+    recv_buffer: HashMap<u64, Vec<u8>>,
 }
 
 #[derive(Clone)]
 pub struct Processor {
-    inner: Arc<Mutex<InnerProcessor>>,
+    send_buffer: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
+    recv_buffer: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
 }
 
 impl Processor {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(InnerProcessor {
-                ctx: Default::default(),
-            })),
+            send_buffer: Arc::new(Default::default()),
+            recv_buffer: Arc::new(Default::default()),
         }
     }
 
-    pub async fn process_connect(&self, connection: &Connection) -> CliResult<()> {
-        info!("Process connect {:?}", connection);
-        if self
-            .inner
-            .lock()
-            .await
-            .ctx
-            .insert(connection.id.tid, Vec::new())
-            .is_some()
-        {
-            error!("Weird, it should not be present");
-        } else {
-            info!("Successfully connected");
-        }
+    async fn on_connect(&self, key: u64) {
+        self.send_buffer.lock().await.insert(key, Vec::new());
+        self.recv_buffer.lock().await.insert(key, Vec::new());
+    }
 
+    async fn on_payload(&self, connection: &Connection, payload: &Payload, storage: Arc<Mutex<HashMap<u64, Vec<u8>>>>) {
+        self.send_buffer.lock().await.insert(connection.id.tid, Vec::new());
+        self.recv_buffer.lock().await.insert(connection.id.tid, Vec::new());
+    }
+
+    pub async fn process_connect(&self, connection: &Connection) -> CliResult<()> {
+        self.on_connect(connection.id.tid).await;
         Ok(())
     }
 
     pub async fn process_send(&self, connection: &Connection, payload: &Payload) -> CliResult<()> {
-        info!("Process send {:?} {:?}", connection, payload.get_meaningful_payload());
-        if let Some(accumulator) = self.inner.lock().await.ctx.get_mut(&connection.id.tid) {
-            accumulator.extend_from_slice(payload.get_meaningful_payload());
-        } else {
-            error!("Weird, buffer for payload not found {:?}", connection);
-        }
+        info!("Process send {:?} {:?}", connection, String::from_utf8(payload.get_meaningful_payload().to_vec()));
+        self.on_payload(connection, payload, self.send_buffer.clone()).await;
         Ok(())
     }
 
-    pub async fn process_recv(&self) {}
+    pub async fn process_recv(&self, connection: &Connection, payload: &Payload) -> CliResult<()> {
+        info!("Process recv {:?} {:?}", connection, String::from_utf8(payload.get_meaningful_payload().to_vec()));
+        self.on_payload(connection, payload, self.recv_buffer.clone()).await;
+        Ok(())
+    }
 
     pub async fn process_close(&self, connection: &Connection) -> CliResult<()> {
         info!("Process close {:?}", connection);
-        if let Some(buffer) = self.inner.lock().await.ctx.remove(&connection.id.tid) {
-            info!("Final output {:?}", String::from_utf8(buffer));
-        } else {
-            info!("Weird not item on close");
-        }
+        self.send_buffer.lock().await.remove(&connection.id.tid);
+        self.recv_buffer.lock().await.remove(&connection.id.tid);
         Ok(())
     }
 }

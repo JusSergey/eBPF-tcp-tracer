@@ -3,7 +3,7 @@ use aya_bpf::helpers::bpf_get_current_pid_tgid;
 use aya_bpf::programs::ProbeContext;
 use aya_log_ebpf::info;
 use tcpk_common::{Identification, PerfDataType, TCP_EVENT_CLOSE_TEMPLATE, TcpEvent};
-use crate::programs::utils::get_tmp_event;
+use crate::programs::common::get_tmp_event;
 use crate::states::{EVENTS, TMP_TCP_EVENT};
 
 pub unsafe fn sys_close_entry(ctx: ProbeContext) -> Result<u32, u32> {

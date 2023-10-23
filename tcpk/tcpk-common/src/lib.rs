@@ -37,13 +37,26 @@ impl Payload {
     }
 }
 
+pub static TCP_CONNECTION_TEMPLATE: Connection = Connection {
+    id: Identification { fd: 0, tid: 0 },
+    ip: 0,
+    port: 0,
+};
+
+pub static TCP_PAYLOAD_TEMPLATE: Payload = Payload {
+    size: 0,
+    data: [0u8; 1500],
+    kernel_ptr: 0 as *const u8,
+};
+
 pub static TCP_EVENT_SEND_TEMPLATE: TcpEvent = TcpEvent::Send {
-    connection: Connection {
-        id: Identification { fd: 0, tid: 0 },
-        ip: 0,
-        port: 0,
-    },
-    payload: Payload { size: 0, data: [0u8; 1500], kernel_ptr: 0 as *const u8 },
+    connection: TCP_CONNECTION_TEMPLATE,
+    payload: TCP_PAYLOAD_TEMPLATE,
+};
+
+pub static TCP_EVENT_RECV_TEMPLATE: TcpEvent = TcpEvent::Recv {
+    connection: TCP_CONNECTION_TEMPLATE,
+    payload: TCP_PAYLOAD_TEMPLATE,
 };
 
 pub static TCP_EVENT_CLOSE_TEMPLATE: TcpEvent = TcpEvent::Close(Connection {
@@ -57,7 +70,7 @@ pub enum TcpEvent {
     Connect(Connection),
     Send {
         connection: Connection,
-        payload: Payload
+        payload: Payload,
     },
     Recv {
         connection: Connection,
@@ -67,9 +80,29 @@ pub enum TcpEvent {
     Dummy,
 }
 
+impl TcpEvent {
+    pub fn get_connection(&mut self) -> Option<&mut Connection> {
+        match self {
+            TcpEvent::Connect(connection)
+            | TcpEvent::Close(connection)
+            | TcpEvent::Send { connection, .. }
+            | TcpEvent::Recv { connection, .. } => Some(connection),
+            _ => None,
+        }
+    }
+}
+
+impl TcpEvent {
+    pub fn get_payload(&mut self) -> Option<&mut Payload> {
+        match self {
+            TcpEvent::Send { payload, .. } | TcpEvent::Recv { payload, .. } => Some(payload),
+            _ => None
+        }
+    }
+}
+
 unsafe impl Sync for TcpEvent {}
 unsafe impl Send for TcpEvent {}
-
 
 pub enum PerfDataType {
     CONNECT = 0,

@@ -6,7 +6,7 @@ use aya_bpf::helpers::{bpf_get_current_pid_tgid, bpf_get_retval, bpf_probe_read}
 use aya_bpf::programs::ProbeContext;
 use aya_log_ebpf::{error, info};
 use tcpk_common::{Connection, Identification, PerfDataType, sockaddr_in, TcpEvent};
-use crate::programs::utils::get_tmp_event;
+use crate::programs::common::get_tmp_event;
 use crate::states::{DUMMY_TCP_EVENT, EVENTS, TMP_TCP_EVENT};
 
 

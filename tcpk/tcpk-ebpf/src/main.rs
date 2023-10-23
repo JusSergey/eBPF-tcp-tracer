@@ -1,3 +1,4 @@
+#![feature(c_size_t)]
 #![no_std]
 #![no_main]
 mod programs;
@@ -50,6 +51,16 @@ pub fn program_sys_sendto_exit(ctx: ProbeContext) -> u32 {
 #[kprobe]
 pub fn program_sys_close_entry(ctx: ProbeContext) -> u32 {
     handle_result(unsafe { programs::sys_close_entry(ctx) })
+}
+
+#[kprobe]
+pub fn program_sys_recvfrom_entry(ctx: ProbeContext) -> u32 {
+    handle_result(unsafe { programs::sys_recvfrom_entry(ctx) })
+}
+
+#[kretprobe]
+pub fn program_sys_recvfrom_exit(ctx: ProbeContext) -> u32 {
+    handle_result(unsafe { programs::sys_recvfrom_exit(ctx) })
 }
 
 // #[kprobe]

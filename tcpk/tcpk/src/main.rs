@@ -55,13 +55,14 @@ async fn main() -> Result<(), anyhow::Error> {
     init_kprobe_program(&mut bpf, "program_sys_sendto_entry", "__sys_sendto")?;
     init_kprobe_program(&mut bpf, "program_sys_sendto_exit", "__sys_sendto")?;
     init_kprobe_program(&mut bpf, "program_sys_close_entry", "__x64_sys_close")?;
+    init_kprobe_program(&mut bpf, "program_sys_recvfrom_entry", "__sys_recvfrom")?;
+    init_kprobe_program(&mut bpf, "program_sys_recvfrom_exit", "__sys_recvfrom")?;
 
     let events: AsyncPerfEventArray<&mut MapData> =
         AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS").unwrap()).unwrap();
 
     // Just to stop compiler complains
     let events: AsyncPerfEventArray<&'static mut MapData> = unsafe { core::mem::transmute(events) };
-
 
     info!("Waiting for Ctrl-C...");
     handle_events(events).await;
@@ -93,26 +94,20 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
 
     let mut futs = Vec::with_capacity(buffers_handlers.len());
 
-    info!("START");
     let cpus_num = cpus.len();
-    // let st = storage.clone();
     for mut bhandler in buffers_handlers {
-        // let st = st.clone();
         let processor = processor.clone();
         futs.push(
             tokio::spawn(async move {
-                info!("HANDLE EVENTS");
                 let mut buffers = (0..cpus_num)
                     .into_iter()
                     .map(|_| BytesMut::with_capacity(core::mem::size_of::<TcpEvent>()))
                     .collect::<Vec<_>>();
-                // let st = st.clone();
                 loop {
                     tokio::select! {
                         res = bhandler.read_events(&mut buffers) => {
                             let events = res.unwrap();
                             info!("Read: {}, Lost: {}", events.read, events.lost);
-                            // let st = st.clone();
                             for i in 0..events.read {
                                 unsafe {
                                     let a = *(buffers[i].as_ptr() as *const TcpEvent);
@@ -127,18 +122,23 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
                                         } => {
                                             processor.process_send(connection, payload).await;
                                         }
+                                        TcpEvent::Recv{
+                                            connection, payload
+                                        } => {
+                                            processor.process_recv(connection, payload).await;
+                                        }
                                         TcpEvent::Close(connection) => {
                                             processor.process_close(connection).await;
                                         }
                                         _ => {
-                                            info!("Another TCP EVENT");
+                                            unreachable!("Another TCP EVENT");
                                         }
                                     }
                                 }
                             }
                         },
                         _ = signal::ctrl_c() => {
-                            info!("ABORT HANDLE");
+                            info!("Aborting...");
                             return;
                         }
                     }
