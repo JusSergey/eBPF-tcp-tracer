@@ -1,20 +1,8 @@
-use crate::CliResult;
-use aya::maps::perf::AsyncPerfEventArrayBuffer;
-use aya::maps::{AsyncPerfEventArray, MapData};
-use bytes::BytesMut;
-use futures::FutureExt;
-use libc::{AF_INET, clone};
-use log::{error, info};
+use log::info;
 use std::collections::HashMap;
-use std::future::Future;
 use std::sync::Arc;
 use tcpk_common::*;
 use tokio::sync::Mutex;
-
-struct InnerProcessor {
-    send_buffer: HashMap<u64, Vec<u8>>,
-    recv_buffer: HashMap<u64, Vec<u8>>,
-}
 
 #[derive(Clone)]
 pub struct Processor {
@@ -35,32 +23,39 @@ impl Processor {
         self.recv_buffer.lock().await.insert(key, Vec::new());
     }
 
-    async fn on_payload(&self, connection: &Connection, payload: &Payload, storage: Arc<Mutex<HashMap<u64, Vec<u8>>>>) {
-        self.send_buffer.lock().await.insert(connection.id.tid, Vec::new());
-        self.recv_buffer.lock().await.insert(connection.id.tid, Vec::new());
+    async fn on_payload(
+        &self,
+        connection: &Connection,
+        payload: &Payload,
+        storage: Arc<Mutex<HashMap<u64, Vec<u8>>>>,
+    ) {
+        if let Some(storage) = storage.lock().await.get_mut(&connection.id.tid) {
+            storage.extend_from_slice(payload.get_meaningful_payload());
+        }
     }
 
-    pub async fn process_connect(&self, connection: &Connection) -> CliResult<()> {
+    pub async fn process_connect(&self, connection: &Connection) {
         self.on_connect(connection.id.tid).await;
-        Ok(())
     }
 
-    pub async fn process_send(&self, connection: &Connection, payload: &Payload) -> CliResult<()> {
-        info!("Process send {:?} {:?}", connection, String::from_utf8(payload.get_meaningful_payload().to_vec()));
-        self.on_payload(connection, payload, self.send_buffer.clone()).await;
-        Ok(())
+    pub async fn process_send(&self, connection: &Connection, payload: &Payload) {
+        self.on_payload(connection, payload, self.send_buffer.clone())
+            .await;
     }
 
-    pub async fn process_recv(&self, connection: &Connection, payload: &Payload) -> CliResult<()> {
-        info!("Process recv {:?} {:?}", connection, String::from_utf8(payload.get_meaningful_payload().to_vec()));
-        self.on_payload(connection, payload, self.recv_buffer.clone()).await;
-        Ok(())
+    pub async fn process_recv(&self, connection: &Connection, payload: &Payload) {
+        self.on_payload(connection, payload, self.recv_buffer.clone())
+            .await;
     }
 
-    pub async fn process_close(&self, connection: &Connection) -> CliResult<()> {
-        info!("Process close {:?}", connection);
-        self.send_buffer.lock().await.remove(&connection.id.tid);
-        self.recv_buffer.lock().await.remove(&connection.id.tid);
-        Ok(())
+    pub async fn process_close(&self, connection: &Connection) {
+        let out_buffer = self.send_buffer.lock().await.remove(&connection.id.tid);
+        let in_buffer = self.recv_buffer.lock().await.remove(&connection.id.tid);
+        if let Some(out) = out_buffer {
+            info!("Sent: {}", String::from_utf8(out).unwrap_or_default());
+        }
+        if let Some(inb) = in_buffer {
+            info!("Got: {}", String::from_utf8(inb).unwrap_or_default());
+        }
     }
 }

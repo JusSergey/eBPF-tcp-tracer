@@ -12,16 +12,6 @@ use aya_bpf::macros::{kretprobe, map};
 use aya_log_ebpf::{error, info};
 use tcpk_common::*;
 
-struct ReadInstruction {
-    fd: i32,
-    payload: Payload,
-}
-
-struct KernelRead {
-    data: *const c_void,
-
-}
-
 fn handle_result(result: Result<u32, u32>) -> u32 {
     match result {
         Ok(ret) | Err(ret) => ret

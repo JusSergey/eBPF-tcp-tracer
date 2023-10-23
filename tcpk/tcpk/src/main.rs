@@ -1,6 +1,7 @@
 mod processor;
 
-use aya::maps::{AsyncPerfEventArray, HashMap, MapData, PerfEventArray};
+use crate::processor::Processor;
+use aya::maps::{AsyncPerfEventArray, MapData};
 use aya::programs::KProbe;
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
@@ -8,13 +9,8 @@ use aya_log::BpfLogger;
 use bytes::BytesMut;
 use futures::FutureExt;
 use log::{debug, info, warn};
-use std::sync::{Arc, Mutex};
 use tcpk_common::*;
 use tokio::signal;
-use crate::processor::Processor;
-
-
-type CliResult<T> = Result<T, anyhow::Error>;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -84,8 +80,6 @@ fn init_kprobe_program(
 
 async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
     let processor = Processor::new();
-    // let storage: Arc<Mutex<std::collections::HashMap<u64, Vec<u8>>>> =
-    //     Arc::new(Mutex::new(std::collections::HashMap::new()));
     let cpus = online_cpus().unwrap();
     let buffers_handlers = cpus
         .iter()
@@ -149,6 +143,4 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
     }
 
     futures::future::join_all(futs).await;
-
-
 }

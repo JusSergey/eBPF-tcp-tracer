@@ -96,7 +96,7 @@ impl TcpEvent {
     pub fn get_payload(&mut self) -> Option<&mut Payload> {
         match self {
             TcpEvent::Send { payload, .. } | TcpEvent::Recv { payload, .. } => Some(payload),
-            _ => None
+            _ => None,
         }
     }
 }

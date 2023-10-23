@@ -1,4 +1,4 @@
-use core::ffi::{c_int, c_ssize_t};
+use core::ffi::c_int;
 use aya_bpf::cty::ssize_t;
 use aya_bpf::helpers::{bpf_get_current_pid_tgid, bpf_probe_read_user_buf};
 use aya_bpf::programs::ProbeContext;
