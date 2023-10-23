@@ -47,6 +47,11 @@ pub fn program_sys_sendto_exit(ctx: ProbeContext) -> u32 {
     handle_result(unsafe { programs::sys_sendto_exit(ctx) })
 }
 
+#[kprobe]
+pub fn program_sys_close_entry(ctx: ProbeContext) -> u32 {
+    handle_result(unsafe { programs::sys_close_entry(ctx) })
+}
+
 // #[kprobe]
 // pub fn program_sys_sendto(ctx: ProbeContext) -> u32 {
 //     match unsafe { sys_sendto(ctx) } {

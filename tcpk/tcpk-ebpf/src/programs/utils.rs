@@ -23,3 +23,7 @@ pub fn get_tmp_event(ctx: &ProbeContext, tid: u64) -> Result<*mut TcpEvent, u32>
         }
     }
 }
+//
+// pub fn is_active_connection(tid: u64) -> bool {
+//     TMP_TCP_EVENT.get_ptr(&tid).is_some()
+// }

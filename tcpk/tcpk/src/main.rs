@@ -1,4 +1,6 @@
-use aya::maps::{AsyncPerfEventArray, MapData, PerfEventArray};
+mod processor;
+
+use aya::maps::{AsyncPerfEventArray, HashMap, MapData, PerfEventArray};
 use aya::programs::KProbe;
 use aya::util::online_cpus;
 use aya::{include_bytes_aligned, Bpf};
@@ -6,8 +8,13 @@ use aya_log::BpfLogger;
 use bytes::BytesMut;
 use futures::FutureExt;
 use log::{debug, info, warn};
+use std::sync::{Arc, Mutex};
 use tcpk_common::*;
 use tokio::signal;
+use crate::processor::Processor;
+
+
+type CliResult<T> = Result<T, anyhow::Error>;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -47,12 +54,14 @@ async fn main() -> Result<(), anyhow::Error> {
     init_kprobe_program(&mut bpf, "program_sys_connect_exit", "__sys_connect")?;
     init_kprobe_program(&mut bpf, "program_sys_sendto_entry", "__sys_sendto")?;
     init_kprobe_program(&mut bpf, "program_sys_sendto_exit", "__sys_sendto")?;
+    init_kprobe_program(&mut bpf, "program_sys_close_entry", "__x64_sys_close")?;
 
     let events: AsyncPerfEventArray<&mut MapData> =
         AsyncPerfEventArray::try_from(bpf.map_mut("EVENTS").unwrap()).unwrap();
 
     // Just to stop compiler complains
     let events: AsyncPerfEventArray<&'static mut MapData> = unsafe { core::mem::transmute(events) };
+
 
     info!("Waiting for Ctrl-C...");
     handle_events(events).await;
@@ -73,6 +82,9 @@ fn init_kprobe_program(
 }
 
 async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
+    let processor = Processor::new();
+    // let storage: Arc<Mutex<std::collections::HashMap<u64, Vec<u8>>>> =
+    //     Arc::new(Mutex::new(std::collections::HashMap::new()));
     let cpus = online_cpus().unwrap();
     let buffers_handlers = cpus
         .iter()
@@ -83,7 +95,10 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
 
     info!("START");
     let cpus_num = cpus.len();
+    // let st = storage.clone();
     for mut bhandler in buffers_handlers {
+        // let st = st.clone();
+        let processor = processor.clone();
         futs.push(
             tokio::spawn(async move {
                 info!("HANDLE EVENTS");
@@ -91,23 +106,29 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
                     .into_iter()
                     .map(|_| BytesMut::with_capacity(core::mem::size_of::<TcpEvent>()))
                     .collect::<Vec<_>>();
+                // let st = st.clone();
                 loop {
                     tokio::select! {
                         res = bhandler.read_events(&mut buffers) => {
                             let events = res.unwrap();
                             info!("Read: {}, Lost: {}", events.read, events.lost);
-                            for i in 0..cpus_num {
+                            // let st = st.clone();
+                            for i in 0..events.read {
                                 unsafe {
-                                    let a = buffers[i].as_ptr() as *const TcpEvent;
-                                    match &*a {
+                                    let a = *(buffers[i].as_ptr() as *const TcpEvent);
+                                    match &a {
                                         TcpEvent::Connect(connection) => {
-                                            info!("Connection event {:?}", connection);
+                                            processor.process_connect(connection).await;
+                                            // info!("Connection event {:?}", connection);
+                                            // st.clone().lock().unwrap().insert(connection.id.tid, vec![]);
                                         },
                                         TcpEvent::Send{
                                             connection, payload
                                         } => {
-                                            info!("Connection send {:?}\n{:?}", connection, String::from_utf8(payload.data[0..payload.size].to_vec()));
-
+                                            processor.process_send(connection, payload).await;
+                                        }
+                                        TcpEvent::Close(connection) => {
+                                            processor.process_close(connection).await;
                                         }
                                         _ => {
                                             info!("Another TCP EVENT");
@@ -128,4 +149,6 @@ async fn handle_events(mut events: AsyncPerfEventArray<&'static mut MapData>) {
     }
 
     futures::future::join_all(futs).await;
+
+
 }
