@@ -43,30 +43,6 @@ pub fn program_sys_recvfrom_exit(ctx: ProbeContext) -> u32 {
     handle_result(unsafe { programs::sys_recvfrom_exit(ctx) })
 }
 
-// #[kprobe]
-// pub fn program_sys_sendto(ctx: ProbeContext) -> u32 {
-//     match unsafe { sys_sendto(ctx) } {
-//         Ok(ret) => ret,
-//         Err(ret) => ret,
-//     }
-// }
-//
-// unsafe fn sys_sendto(ctx: ProbeContext) -> Result<u32, u32> {
-//     Ok(0)
-// }
-//
-// #[kprobe]
-// pub fn program_sys_recvfrom(ctx: ProbeContext) -> u32 {
-//     match unsafe { sys_recvfrom(ctx) } {
-//         Ok(ret) => ret,
-//         Err(ret) => ret,
-//     }
-// }
-//
-// unsafe fn sys_recvfrom(ctx: ProbeContext) -> Result<u32, u32> {
-//     Ok(0)
-// }
-
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     unsafe { core::hint::unreachable_unchecked() }
